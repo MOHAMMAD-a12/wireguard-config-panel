@@ -113,7 +113,7 @@
     <div id="qr"></div>
     <pre id="cfgText"></pre>
     <div class="row" style="margin-top:10px">
-      <button class="btn btn-blue btn-sm" onclick="copyCfg()">کپی</button>
+      <button id="copyBtn" class="btn btn-blue btn-sm" onclick="copyCfg()">📋 کپی</button>
       <button class="btn btn-ghost btn-sm" onclick="dlCfg()">⬇️ دانلود .conf</button>
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">بستن</button>
     </div>
@@ -180,7 +180,7 @@ async function addClient() {
     allowedIps: mode==='custom' ? ($('cAllowed').value||'0.0.0.0/0') : mode,
   };
   const r = await api('/api/clients', { method:'POST', body: JSON.stringify(body) });
-  if (r.ok) { $('cName').value=''; openModal($('cName').value||'client', r.config); load(); }
+  if (r.ok) { const nm=$('cName').value||'client'; $('cName').value=''; openModal(nm, r.config); load(); }
   else alert(r.error||'خطا');
 }
 
@@ -195,18 +195,51 @@ async function delClient(id, name){
 }
 
 function openModal(name, cfg){
+  cfg = cfg || '';
   curCfg=cfg; curName=name;
-  $('cfgTitle').textContent='کانفیگ: '+name;
-  $('cfgText').textContent=cfg;
-  $('qr').innerHTML=''; new QRCode($('qr'),{text:cfg,width:200,height:200,correctLevel:QRCode.CorrectLevel.L});
+  $('cfgTitle').textContent='کانفیگ: '+(name||'client');
+  $('qr').innerHTML='';
+  if(!cfg.trim()){
+    $('cfgText').textContent='⚠️ کانفیگ خالی برگشت. سرور بالا نیست یا پاسخ نداد.\nمطمئن شو node server.js در حال اجراست و از طریق همان آدرس باز کرده‌ای.';
+  } else {
+    $('cfgText').textContent=cfg;
+    try{ new QRCode($('qr'),{text:cfg,width:200,height:200,correctLevel:QRCode.CorrectLevel.L}); }catch(e){}
+  }
   $('cfgModal').classList.remove('hidden');
 }
 function closeModal(){ $('cfgModal').classList.add('hidden'); }
-function copyCfg(){ navigator.clipboard.writeText(curCfg); }
+
+// کپی مقاوم: در http (غیرامن) navigator.clipboard وجود ندارد، پس fallback داریم
+function copyText(text){
+  if(navigator.clipboard && window.isSecureContext){
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve,reject)=>{
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.top='-9999px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); resolve(); }catch(e){ reject(e); }
+    document.body.removeChild(ta);
+  });
+}
+function copyCfg(){
+  if(!curCfg){ alert('چیزی برای کپی نیست.'); return; }
+  const btn=$('copyBtn'), old=btn.textContent;
+  copyText(curCfg).then(()=>{
+    btn.textContent='✅ کپی شد'; setTimeout(()=>btn.textContent=old,1500);
+  }).catch(()=>{
+    // آخرین راه: کاربر دستی انتخاب کند
+    const r=document.createRange(); r.selectNode($('cfgText'));
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+    btn.textContent='دستی: Ctrl+C'; setTimeout(()=>btn.textContent=old,2500);
+  });
+}
 function dlCfg(){
+  if(!curCfg){ alert('چیزی برای دانلود نیست.'); return; }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([curCfg],{type:'text/plain'}));
-  a.download=(curName||'client')+'.conf'; a.click();
+  a.download=(curName||'client').replace(/\s+/g,'_')+'.conf';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 // اگر کوکی معتبر داشت مستقیم وارد شو
