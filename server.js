@@ -23,12 +23,33 @@ const DEFAULT_MTU= process.env.WG_MTU       || '1420';
 const DEFAULT_DNS= process.env.WG_DNS       || '1.1.1.1, 8.8.8.8';
 let   ENDPOINT   = process.env.SERVER_ENDPOINT || '';           // IP عمومی سرور
 
+// ---- حالت ضدفیلتر AmneziaWG (DPI-resistant) ----
+// AWG=1 → از باینری awg / awg-quick استفاده کن و پارامترهای obfuscation را به کانفیگ اضافه کن
+const USE_AWG    = process.env.AWG === '1' || process.env.AWG === 'true';
+const WG_BIN     = USE_AWG ? 'awg' : 'wg';
+const WGQUICK    = USE_AWG ? 'awg-quick' : 'wg-quick';
+
 const ROOT = path.join(__dirname, 'public');
 const IS_LINUX = process.platform === 'linux';
 
 // ---------- ابزارها ----------
 function sh(cmd) { return execSync(cmd, { encoding: 'utf8' }).trim(); }
-function wg(args) { return execFileSync('wg', args, { encoding: 'utf8' }).trim(); }
+function wg(args) { return execFileSync(WG_BIN, args, { encoding: 'utf8' }).trim(); }
+
+// پارامترهای obfuscation برای AmneziaWG — یک‌بار ساخته و بین سرور و همهٔ کلاینت‌ها مشترک می‌شود
+function genObfuscation() {
+  const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  // H1..H4 باید متمایز و بزرگ‌تر از 4 باشند
+  const hs = new Set();
+  while (hs.size < 4) hs.add(rnd(5, 2147483000));
+  const [H1, H2, H3, H4] = [...hs];
+  return { Jc: rnd(3, 8), Jmin: 40, Jmax: 70, S1: rnd(15, 100), S2: rnd(15, 100), H1, H2, H3, H4 };
+}
+function obfLines(o) {
+  if (!USE_AWG || !o) return '';
+  return `Jc = ${o.Jc}\nJmin = ${o.Jmin}\nJmax = ${o.Jmax}\nS1 = ${o.S1}\nS2 = ${o.S2}\n`
+       + `H1 = ${o.H1}\nH2 = ${o.H2}\nH3 = ${o.H3}\nH4 = ${o.H4}\n`;
+}
 
 function detectEndpoint() {
   if (ENDPOINT) return ENDPOINT;
@@ -41,7 +62,7 @@ function detectEndpoint() {
 function genKeypair() {
   if (IS_LINUX) {
     const priv = wg(['genkey']);
-    const pub  = execSync('wg pubkey', { input: priv, encoding: 'utf8' }).trim();
+    const pub  = execSync(`${WG_BIN} pubkey`, { input: priv, encoding: 'utf8' }).trim();
     return { priv, pub };
   }
   // fallback فقط برای تست روی ویندوز/مک (بدون wg)
@@ -53,13 +74,14 @@ function genKeypair() {
 
 // ---------- ذخیرهٔ داده ----------
 function loadData() {
-  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+  let d;
+  try { d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
   catch {
-    const server = genKeypair();
-    const d = { server, clients: [] };
-    saveData(d);
-    return d;
+    d = { server: genKeypair(), clients: [] };
   }
+  // پارامترهای ضدفیلتر را یک‌بار بساز و ثابت نگه‌دار (باید سرور و کلاینت یکسان باشند)
+  if (!d.obf) { d.obf = genObfuscation(); saveData(d); }
+  return d;
 }
 function saveData(d) {
   try { fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true }); } catch {}
@@ -92,7 +114,7 @@ Address = ${serverIP()}
 ListenPort = ${WG_PORT}
 PrivateKey = ${d.server.priv}
 MTU = ${DEFAULT_MTU}
-PostUp   = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${WAN_IF} -j MASQUERADE
+${obfLines(d.obf)}PostUp   = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ${WAN_IF} -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ${WAN_IF} -j MASQUERADE
 `;
   for (const c of d.clients) {
@@ -107,11 +129,11 @@ function applyServer(d) {
   fs.writeFileSync(WG_CONF, buildServerConf(d));
   try {
     // اگر اینترفیس بالا نیست، بالا بیاور؛ در غیر این صورت زنده سینک کن
-    try { sh(`wg show ${WG_IF} >/dev/null 2>&1`); sh(`wg syncconf ${WG_IF} <(wg-quick strip ${WG_IF})`); }
-    catch { sh(`wg-quick up ${WG_IF}`); }
+    try { sh(`${WG_BIN} show ${WG_IF} >/dev/null 2>&1`); sh(`bash -c '${WG_BIN} syncconf ${WG_IF} <(${WGQUICK} strip ${WG_IF})'`); }
+    catch { sh(`${WGQUICK} up ${WG_IF}`); }
   } catch (e) {
     // اجرای syncconf با bash برای پشتیبانی از <()
-    try { sh(`bash -c 'wg syncconf ${WG_IF} <(wg-quick strip ${WG_IF})'`); }
+    try { sh(`bash -c '${WG_BIN} syncconf ${WG_IF} <(${WGQUICK} strip ${WG_IF})'`); }
     catch (e2) { console.error('apply error:', e2.message); }
   }
 }
@@ -126,7 +148,7 @@ PrivateKey = ${c.priv}
 Address = ${c.ip}
 DNS = ${dns}
 MTU = ${mtu}
-
+${obfLines(d.obf)}
 [Peer]
 PublicKey = ${d.server.pub}
 AllowedIPs = ${allowed}
@@ -241,7 +263,7 @@ async function handleAPI(req, res, url) {
     if (idx < 0) return sendJSON(res, 404, { ok: false, error: 'یافت نشد' });
     const [removed] = d.clients.splice(idx, 1);
     saveData(d);
-    if (IS_LINUX) { try { sh(`wg set ${WG_IF} peer ${removed.pub} remove`); } catch {} }
+    if (IS_LINUX) { try { sh(`${WG_BIN} set ${WG_IF} peer ${removed.pub} remove`); } catch {} }
     applyServer(d);
     return sendJSON(res, 200, { ok: true });
   }
