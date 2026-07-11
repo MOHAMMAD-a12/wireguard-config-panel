@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پنل WireGuard — بهینهٔ گیم</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2330;--border:#2b3444;--text:#e6edf3;
+    --muted:#8b98a9;--accent:#3fb950;--accent2:#2f81f7;--danger:#f85149;--radius:14px}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Vazirmatn,Tahoma,system-ui,sans-serif;color:var(--text);min-height:100vh;
+    background:radial-gradient(1200px 600px at 80% -10%,#16324a55,transparent),
+    radial-gradient(900px 500px at -10% 10%,#16402a55,transparent),var(--bg);padding:24px}
+  .wrap{max-width:1050px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 4px}.sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+  .badge{background:#16402a;color:var(--accent);font-size:11px;padding:3px 9px;border-radius:20px;margin-inline-start:6px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 6px}
+  input,select{width:100%;background:#0b0f16;border:1px solid var(--border);color:var(--text);
+    border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;direction:ltr;text-align:left}
+  .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+  .btn{cursor:pointer;border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;
+    font-family:inherit;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .btn:hover{filter:brightness(1.1)}.btn-primary{background:var(--accent);color:#03260f}
+  .btn-blue{background:var(--accent2);color:#fff}.btn-ghost{background:#0b0f16;color:var(--text);border:1px solid var(--border)}
+  .btn-danger{background:#2a1113;color:var(--danger);border:1px solid #5c1f21}
+  .btn-sm{padding:6px 10px;font-size:12px}
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th,td{text-align:right;padding:10px 8px;border-bottom:1px solid var(--border);font-size:13px}
+  th{color:var(--muted);font-weight:500}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-inline-start:4px}
+  .on{background:var(--accent)}.off{background:#555}
+  .mono{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted)}
+  #login{max-width:360px;margin:80px auto}
+  .hidden{display:none}
+  .modal{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal .card{max-width:420px;width:100%;margin:0}
+  pre{background:#0b0f16;border:1px solid var(--border);border-radius:10px;padding:12px;overflow:auto;
+    font-size:11.5px;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-all}
+  #qr{display:flex;justify-content:center;padding:14px;background:#fff;border-radius:10px;margin-top:10px}
+  .note{background:#1a1f0b;border:1px solid #3a3a1a;color:#e0d97a;font-size:12.5px;padding:12px 14px;border-radius:10px;line-height:1.7}
+  .err{color:var(--danger);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ورود -->
+  <div id="login" class="card">
+    <h1>🛡️ ورود به پنل</h1>
+    <div class="sub">رمز عبور مدیریت را وارد کن</div>
+    <label>رمز عبور</label>
+    <input id="pass" type="password" onkeydown="if(event.key==='Enter')login()">
+    <div class="err" id="loginErr"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="login()">ورود</button>
+  </div>
+
+  <!-- پنل -->
+  <div id="panel" class="hidden">
+    <h1>🛡️ پنل WireGuard <span class="badge">بهینهٔ گیم</span>
+      <button class="btn btn-ghost btn-sm" style="float:left" onclick="logout()">خروج</button>
+    </h1>
+    <div class="sub" id="srvInfo">در حال بارگذاری…</div>
+
+    <div class="card">
+      <h2>➕ ساخت کلاینت جدید</h2>
+      <div class="row">
+        <div><label>نام کلاینت</label><input id="cName" placeholder="مثلاً موبایل-من"></div>
+        <div><label>MTU</label><input id="cMtu" value="1420"></div>
+      </div>
+      <div class="row">
+        <div><label>DNS</label><input id="cDns" value="1.1.1.1, 8.8.8.8"></div>
+        <div><label>حالت</label>
+          <select id="cMode">
+            <option value="0.0.0.0/0, ::/0">کل ترافیک (Full)</option>
+            <option value="custom">فقط بازی (Split — رنج سفارشی)</option>
+          </select>
+        </div>
+      </div>
+      <div id="customBox" class="hidden">
+        <label>AllowedIPs سفارشی (رنج IP سرورهای بازی)</label>
+        <input id="cAllowed" placeholder="مثلاً 51.124.0.0/16, 20.0.0.0/8">
+      </div>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="addClient()">🔑 ساخت و اعمال روی سرور</button>
+    </div>
+
+    <div class="card">
+      <h2>👥 کلاینت‌ها</h2>
+      <table>
+        <thead><tr><th>نام</th><th>IP</th><th>وضعیت</th><th>ترافیک</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="mono" style="margin-top:10px">هنوز کلاینتی ساخته نشده.</div>
+    </div>
+
+    <div class="card">
+      <div class="note">
+        <b>🎮 نکات پینگ پایین:</b> مهم‌ترین عامل موقعیت خودِ VPS است — سروری نزدیک به دیتاسنتر بازی بگیر.
+        اگر لگ داری MTU را ۱۳۸۰ یا ۱۲۸۰ کن. برای پینگ بهتر، حالت «فقط بازی» را با رنج IP سرور بازی بزن تا کل ترافیک تونل نشود.
+        <br>مطمئن شو پورت UDP <b id="portNote">51820</b> در فایروال/سکیوریتی‌گروپ VPS باز است.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- مودال کانفیگ -->
+<div id="cfgModal" class="modal hidden">
+  <div class="card">
+    <h2 id="cfgTitle">کانفیگ کلاینت</h2>
+    <div id="qr"></div>
+    <pre id="cfgText"></pre>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-blue btn-sm" onclick="copyCfg()">کپی</button>
+      <button class="btn btn-ghost btn-sm" onclick="dlCfg()">⬇️ دانلود .conf</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">بستن</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let curCfg = '', curName = '';
+const $ = id => document.getElementById(id);
+
+async function api(path, opts={}) {
+  const r = await fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
+  const j = await r.json().catch(()=>({}));
+  return { status:r.status, ...j };
+}
+
+async function login() {
+  const r = await api('/api/login', { method:'POST', body: JSON.stringify({ password: $('pass').value }) });
+  if (r.ok) { $('login').classList.add('hidden'); $('panel').classList.remove('hidden'); load(); }
+  else $('loginErr').textContent = r.error || 'خطا';
+}
+async function logout(){ await api('/api/logout',{method:'POST'}); location.reload(); }
+
+$('cMode').onchange = e => $('customBox').classList.toggle('hidden', e.target.value!=='custom');
+
+function fmtHandshake(t){
+  if(!t) return 'هرگز';
+  const s = Math.floor(Date.now()/1000)-t;
+  if(s<60) return s+' ثانیه پیش';
+  if(s<3600) return Math.floor(s/60)+' دقیقه پیش';
+  return Math.floor(s/3600)+' ساعت پیش';
+}
+function fmtBytes(b){ if(!b) return '0'; const u=['B','KB','MB','GB']; let i=0; while(b>=1024&&i<3){b/=1024;i++} return b.toFixed(1)+u[i]; }
+
+async function load() {
+  const s = await api('/api/state');
+  if (s.status===401){ location.reload(); return; }
+  $('srvInfo').innerHTML = `سرور: <b>${s.endpoint||'?'}:${s.wgPort}</b> · کلید عمومی: <span class="mono">${s.serverPub.slice(0,20)}…</span>`;
+  $('portNote').textContent = s.wgPort;
+  const rows = $('rows'); rows.innerHTML='';
+  $('empty').style.display = s.clients.length ? 'none':'block';
+  for (const c of s.clients) {
+    const online = c.live && (Date.now()/1000 - c.live.latestHandshake) < 180;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${c.name}</td>
+      <td class="mono">${c.ip}</td>
+      <td><span class="dot ${online?'on':'off'}"></span>${c.live?fmtHandshake(c.live.latestHandshake):'—'}</td>
+      <td class="mono">↓${c.live?fmtBytes(c.live.rx):'0'} ↑${c.live?fmtBytes(c.live.tx):'0'}</td>
+      <td style="text-align:left;white-space:nowrap">
+        <button class="btn btn-blue btn-sm" onclick="showCfg('${c.id}','${c.name}')">کانفیگ</button>
+        <button class="btn btn-danger btn-sm" onclick="delClient('${c.id}','${c.name}')">حذف</button>
+      </td>`;
+    rows.appendChild(tr);
+  }
+}
+
+async function addClient() {
+  const mode = $('cMode').value;
+  const body = {
+    name: $('cName').value,
+    mtu: $('cMtu').value,
+    dns: $('cDns').value,
+    allowedIps: mode==='custom' ? ($('cAllowed').value||'0.0.0.0/0') : mode,
+  };
+  const r = await api('/api/clients', { method:'POST', body: JSON.stringify(body) });
+  if (r.ok) { $('cName').value=''; openModal($('cName').value||'client', r.config); load(); }
+  else alert(r.error||'خطا');
+}
+
+async function showCfg(id, name){
+  const r = await api(`/api/clients/${id}/config`);
+  if(r.ok) openModal(r.name||name, r.config);
+}
+async function delClient(id, name){
+  if(!confirm(`حذف «${name}»؟`)) return;
+  const r = await api(`/api/clients/${id}`, { method:'DELETE' });
+  if(r.ok) load(); else alert(r.error||'خطا');
+}
+
+function openModal(name, cfg){
+  curCfg=cfg; curName=name;
+  $('cfgTitle').textContent='کانفیگ: '+name;
+  $('cfgText').textContent=cfg;
+  $('qr').innerHTML=''; new QRCode($('qr'),{text:cfg,width:200,height:200,correctLevel:QRCode.CorrectLevel.L});
+  $('cfgModal').classList.remove('hidden');
+}
+function closeModal(){ $('cfgModal').classList.add('hidden'); }
+function copyCfg(){ navigator.clipboard.writeText(curCfg); }
+function dlCfg(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([curCfg],{type:'text/plain'}));
+  a.download=(curName||'client')+'.conf'; a.click();
+}
+
+// اگر کوکی معتبر داشت مستقیم وارد شو
+(async ()=>{ const s=await api('/api/state'); if(s.status!==401){ $('login').classList.add('hidden'); $('panel').classList.remove('hidden'); load(); } })();
+setInterval(()=>{ if(!$('panel').classList.contains('hidden')) load(); }, 15000);
+</script>
+</body>
+</html>

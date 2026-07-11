@@ -1,0 +1,13 @@
+{
+  "name": "wireguard-config-panel",
+  "version": "1.0.0",
+  "description": "پنل مدیریت واقعی WireGuard روی VPS با هستهٔ wg - بهینه گیم",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
