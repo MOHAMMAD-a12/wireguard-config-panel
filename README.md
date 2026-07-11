@@ -87,7 +87,26 @@ sudo bash install-amnezia.sh
 > ⚠️ **مهم:** در این حالت کلاینت‌ها باید با اپ **AmneziaWG / AmneziaVPN** وصل شوند، نه اپ استاندارد WireGuard.
 > اپ استاندارد پارامترهای ضدفیلتر را نمی‌شناسد. کانفیگ‌های قدیمی هم دیگر کار نمی‌کنند؛ در پنل کلاینت جدید بساز.
 
-دانلود اپ‌ها: [amnezia.org](https://amnezia.org) (Android/iOS/Windows/Mac/Linux).
+### 📥 با چه برنامه‌ای وصل شوم؟ (لینک دانلود)
+
+کانفیگی که پنل می‌دهد را در یکی از این اپ‌ها **Import** کن (فایل `.conf` یا اسکن QR):
+
+| سیستم‌عامل | برنامه | لینک دانلود |
+|---|---|---|
+| 🖥️ همه (رسمی) | AmneziaVPN | https://amnezia.org/en/downloads |
+| 🐙 همه (GitHub) | AmneziaVPN Releases | https://github.com/amnezia-vpn/amnezia-client/releases |
+| 🤖 Android | AmneziaWG (فورک WireGuard) | https://github.com/amnezia-vpn/amneziawg-android/releases |
+| 🤖 Android | Google Play | https://play.google.com/store/apps/details?id=org.amnezia.vpn |
+| 🍏 iOS | App Store | https://apps.apple.com/app/amneziavpn/id1600529900 |
+| 🪟 Windows / 🍎 macOS / 🐧 Linux | AmneziaVPN | https://amnezia.org/en/downloads |
+
+**مراحل اتصال:**
+1. اپ AmneziaVPN (یا AmneziaWG اندروید) را از لینک بالا نصب کن.
+2. در پنل، دکمهٔ «کانفیگ» کلاینت را بزن → **QR** را اسکن کن یا فایل `.conf` را دانلود و در اپ **Import** کن.
+3. اتصال را روشن کن. ✅
+
+> ❌ اپ استاندارد **WireGuard** (از wireguard.com) در حالت ضدفیلتر کار **نمی‌کند**.
+> ✅ اگر پنل را در حالت عادی (بدون AmneziaWG) اجرا کنی، همان اپ استاندارد WireGuard جواب می‌دهد.
 
 ---
 
